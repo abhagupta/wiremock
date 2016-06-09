@@ -34,7 +34,7 @@ import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.GzipFilter;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
+import com.github.tomakehurst.wiremock.jetty9.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 import javax.servlet.DispatcherType;
@@ -63,6 +63,7 @@ class JettyHttpServer implements HttpServer {
 
         httpConnector = createHttpConnector(
                 options.bindAddress(),
+
                 options.portNumber(),
                 options.jettySettings()
         );
@@ -162,6 +163,7 @@ class JettyHttpServer implements HttpServer {
 
         SslContextFactory sslContextFactory = new SslContextFactory();
         sslContextFactory.setKeyStorePath(httpsSettings.keyStorePath());
+        sslContextFactory.setKeyStoreType("BKS");
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
         if (httpsSettings.hasTrustStore()) {
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
