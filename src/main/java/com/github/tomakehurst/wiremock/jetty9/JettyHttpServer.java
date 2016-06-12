@@ -34,10 +34,11 @@ import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.GzipFilter;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 import javax.servlet.DispatcherType;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
 
 import static com.github.tomakehurst.wiremock.common.Exceptions.throwUnchecked;
@@ -98,6 +99,7 @@ class JettyHttpServer implements HttpServer {
     @Override
     public void start() {
         try {
+            System.out.println("JETTY SERVER STARTING");
             jettyServer.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -159,13 +161,20 @@ class JettyHttpServer implements HttpServer {
 
     private ServerConnector createHttpsConnector(
             HttpsSettings httpsSettings,
-            JettySettings jettySettings) {
+            JettySettings jettySettings)  {
 
-        SslContextFactory sslContextFactory = new SslContextFactory();
+        System.out.println("JETTY SERVER CONNECTING AT HTTPS");
+
+
+        CustomizedSslContextFactory sslContextFactory = new CustomizedSslContextFactory();
+
         sslContextFactory.setKeyStorePath(httpsSettings.keyStorePath());
+        System.out.println("JETTY SERVER setting keystore type");
+        sslContextFactory.setKeyStoreType("BKS");
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
         if (httpsSettings.hasTrustStore()) {
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
+            sslContextFactory.setTrustStoreType("BKS");
             sslContextFactory.setTrustStorePassword(httpsSettings.trustStorePassword());
         }
         sslContextFactory.setNeedClientAuth(httpsSettings.needClientAuth());
