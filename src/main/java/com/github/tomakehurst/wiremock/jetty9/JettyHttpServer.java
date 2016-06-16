@@ -173,17 +173,23 @@ class JettyHttpServer implements HttpServer {
         sslContextFactory.setKeyStoreType("BKS");
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
         if (httpsSettings.hasTrustStore()) {
+            System.out.println("httpsSettings.hasTrustStore() " + httpsSettings.hasTrustStore());
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
             sslContextFactory.setTrustStoreType("BKS");
             sslContextFactory.setTrustStorePassword(httpsSettings.trustStorePassword());
         }
+
+        System.out.println("outside " + httpsSettings.needClientAuth());
         sslContextFactory.setNeedClientAuth(httpsSettings.needClientAuth());
 
         HttpConfiguration httpConfig = new HttpConfiguration();
+        System.out.println("httpConfig " + httpConfig);
         setHeaderBufferSize(jettySettings, httpConfig);
         httpConfig.addCustomizer(new SecureRequestCustomizer());
 
         final int port = httpsSettings.port();
+
+        System.out.println("httpsSettings.port " + port);
 
 
         return createServerConnector(
@@ -198,6 +204,7 @@ class JettyHttpServer implements HttpServer {
     }
 
     private ServerConnector createServerConnector(JettySettings jettySettings, int port, ConnectionFactory... connectionFactories) {
+        System.out.println("<---------------createServerConnector start-------------> ");
         int acceptors = jettySettings.getAcceptors().or(2);
         ServerConnector connector = new ServerConnector(
                 jettyServer,
@@ -219,6 +226,7 @@ class JettyHttpServer implements HttpServer {
     }
 
     private void setJettySettings(JettySettings jettySettings, ServerConnector connector) {
+        System.out.println("<---------------setJettySettings start-------------> ");
         if (jettySettings.getAcceptQueueSize().isPresent()) {
             connector.setAcceptQueueSize(jettySettings.getAcceptQueueSize().get());
         }

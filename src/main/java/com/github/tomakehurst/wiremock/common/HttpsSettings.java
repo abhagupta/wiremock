@@ -52,6 +52,7 @@ public class HttpsSettings {
     }
 
     public String trustStorePath() {
+        System.out.println("Trust store path :" + trustStorePath);
         return trustStorePath;
     }
 
