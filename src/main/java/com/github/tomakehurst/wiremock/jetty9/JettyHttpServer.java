@@ -99,7 +99,6 @@ class JettyHttpServer implements HttpServer {
     @Override
     public void start() {
         try {
-            System.out.println("JETTY SERVER STARTING");
             jettyServer.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -163,34 +162,25 @@ class JettyHttpServer implements HttpServer {
             HttpsSettings httpsSettings,
             JettySettings jettySettings)  {
 
-        System.out.println("JETTY SERVER CONNECTING AT HTTPS");
-
 
         CustomizedSslContextFactory sslContextFactory = new CustomizedSslContextFactory();
 
         sslContextFactory.setKeyStorePath(httpsSettings.keyStorePath());
-        System.out.println("JETTY SERVER setting keystore type");
-        sslContextFactory.setKeyStoreType("BKS");
+        sslContextFactory.setKeyStoreType(httpsSettings.keyStoreType());
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
         if (httpsSettings.hasTrustStore()) {
-            System.out.println("httpsSettings.hasTrustStore() " + httpsSettings.hasTrustStore());
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
-            sslContextFactory.setTrustStoreType("BKS");
+            sslContextFactory.setTrustStoreType(httpsSettings.trustStoreType());
             sslContextFactory.setTrustStorePassword(httpsSettings.trustStorePassword());
         }
 
-        System.out.println("outside " + httpsSettings.needClientAuth());
         sslContextFactory.setNeedClientAuth(httpsSettings.needClientAuth());
 
         HttpConfiguration httpConfig = new HttpConfiguration();
-        System.out.println("httpConfig " + httpConfig);
         setHeaderBufferSize(jettySettings, httpConfig);
         httpConfig.addCustomizer(new SecureRequestCustomizer());
 
         final int port = httpsSettings.port();
-
-        System.out.println("httpsSettings.port " + port);
-
 
         return createServerConnector(
                 jettySettings,
@@ -204,7 +194,6 @@ class JettyHttpServer implements HttpServer {
     }
 
     private ServerConnector createServerConnector(JettySettings jettySettings, int port, ConnectionFactory... connectionFactories) {
-        System.out.println("<---------------createServerConnector start-------------> ");
         int acceptors = jettySettings.getAcceptors().or(2);
         ServerConnector connector = new ServerConnector(
                 jettyServer,
@@ -226,7 +215,6 @@ class JettyHttpServer implements HttpServer {
     }
 
     private void setJettySettings(JettySettings jettySettings, ServerConnector connector) {
-        System.out.println("<---------------setJettySettings start-------------> ");
         if (jettySettings.getAcceptQueueSize().isPresent()) {
             connector.setAcceptQueueSize(jettySettings.getAcceptQueueSize().get());
         }
