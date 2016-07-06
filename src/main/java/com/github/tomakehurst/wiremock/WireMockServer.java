@@ -55,7 +55,7 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
     public static final String MAPPINGS_ROOT = "mappings";
 
 	private final WireMockApp wireMockApp;
-    private final StubRequestHandler stubRequestHandler;
+    private static StubRequestHandler stubRequestHandler = null;
 
 	private final HttpServer httpServer;
     private final FileSource fileSource;
@@ -166,8 +166,9 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
         return wireMockApp.getGlobalSettingsHolder();
     }
 
-    public void addMockServiceRequestListener(RequestListener listener) {
+    public static void addMockServiceRequestListener(RequestListener listener) {
 		stubRequestHandler.addRequestListener(listener);
+        stubRequestHandler.useWithSetMockId();
 	}
 	
 	public void enableRecordMappings(FileSource mappingsFileSource, FileSource filesFileSource) {

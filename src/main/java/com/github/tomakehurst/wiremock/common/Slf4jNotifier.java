@@ -32,27 +32,17 @@ public class Slf4jNotifier implements Notifier {
     @Override
     public void info(String message) {
         if (verbose) {
-            System.out.println("Message from Wiremock :" + message);
-            System.err.println("Message from Wiremock :" + message);
-
             log.info(message);
-
         }
     }
 
     @Override
     public void error(String message) {
-        System.out.println("Message from Wiremock :" + message);
-        System.err.println("Message from Wiremock :" + message);
-
-
         log.error(message);
     }
 
     @Override
     public void error(String message, Throwable t) {
-        System.out.println("Message from Wiremock :" + message);
-        System.err.println("Message from Wiremock :" + message);
         log.error(message, t);
     }
 }

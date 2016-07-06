@@ -40,9 +40,11 @@ public class WireMockWebContextListener implements ServletContextListener {
     private static final String APP_CONTEXT_KEY = "WireMockApp";
     private static final String FILE_SOURCE_ROOT_KEY = "WireMockFileSourceRoot";
 
+    private static ServletContext context;
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        ServletContext context = sce.getServletContext();
+        context = sce.getServletContext();
         String fileSourceRoot = context.getInitParameter(FILE_SOURCE_ROOT_KEY);
 
         ServletContextFileSource fileSource = new ServletContextFileSource(context, fileSourceRoot);
@@ -75,6 +77,11 @@ public class WireMockWebContextListener implements ServletContextListener {
         context.setAttribute(StubRequestHandler.class.getName(), stubRequestHandler);
         context.setAttribute(AdminRequestHandler.class.getName(), adminRequestHandler);
         context.setAttribute(Notifier.KEY, new Slf4jNotifier(verboseLoggingEnabled));
+    }
+
+    public static void addListener(Slf4jNotifier slf4jNotifier){
+        //slf4jNotifier = new Slf4jNotifier(true);
+        context.setAttribute(Notifier.KEY, slf4jNotifier);
     }
 
     /**

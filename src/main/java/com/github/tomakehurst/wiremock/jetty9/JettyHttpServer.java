@@ -163,17 +163,13 @@ class JettyHttpServer implements HttpServer {
             HttpsSettings httpsSettings,
             JettySettings jettySettings)  {
 
-        System.out.println("JETTY SERVER CONNECTING AT HTTPS");
-
 
         CustomizedSslContextFactory sslContextFactory = new CustomizedSslContextFactory();
 
         sslContextFactory.setKeyStorePath(httpsSettings.keyStorePath());
-        System.out.println("JETTY SERVER setting keystore type");
         sslContextFactory.setKeyStoreType("BKS");
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
         if (httpsSettings.hasTrustStore()) {
-            System.out.println("httpsSettings.hasTrustStore() " + httpsSettings.hasTrustStore());
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
             sslContextFactory.setTrustStoreType("BKS");
             sslContextFactory.setTrustStorePassword(httpsSettings.trustStorePassword());
@@ -204,7 +200,6 @@ class JettyHttpServer implements HttpServer {
     }
 
     private ServerConnector createServerConnector(JettySettings jettySettings, int port, ConnectionFactory... connectionFactories) {
-        System.out.println("<---------------createServerConnector start-------------> ");
         int acceptors = jettySettings.getAcceptors().or(2);
         ServerConnector connector = new ServerConnector(
                 jettyServer,
@@ -226,7 +221,6 @@ class JettyHttpServer implements HttpServer {
     }
 
     private void setJettySettings(JettySettings jettySettings, ServerConnector connector) {
-        System.out.println("<---------------setJettySettings start-------------> ");
         if (jettySettings.getAcceptQueueSize().isPresent()) {
             connector.setAcceptQueueSize(jettySettings.getAcceptQueueSize().get());
         }
