@@ -15,21 +15,22 @@
  */
 package com.github.tomakehurst.wiremock.http;
 
-import com.google.common.base.Function;
+import com.github.tomakehurst.wiremock.stubbing.ServedStub;
 
 import java.util.List;
 
 import static com.github.tomakehurst.wiremock.common.LocalNotifier.notifier;
-import static com.google.common.base.Joiner.on;
-import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Lists.newArrayList;
 
 public abstract class AbstractRequestHandler implements RequestHandler, RequestEventSource {
 
 	protected List<RequestListener> listeners = newArrayList();
 	protected final ResponseRenderer responseRenderer;
+
 	private boolean useWithSetMockId = false;
-	
+
+
+
 	public AbstractRequestHandler(ResponseRenderer responseRenderer) {
 		this.responseRenderer = responseRenderer;
 	}
@@ -52,7 +53,8 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 
 	@Override
 	public Response handle(Request request) {
-		ResponseDefinition responseDefinition = handleRequest(request);
+		ServedStub servedStub = handleRequest(request);
+		ResponseDefinition responseDefinition = servedStub.getResponseDefinition();
 		responseDefinition.setOriginalRequest(request);
 		Response response = responseRenderer.render(responseDefinition);
 
@@ -66,15 +68,22 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 		for (RequestListener listener: listeners) {
 			listener.requestReceived(request, response);
 		}
+
 		return response;
 	}
 
 	private static String formatRequest(Request request) {
 		StringBuilder sb = new StringBuilder();
-		sb.append(request.getMethod()).append(" ").append(request.getUrl());
+		sb.append(request.getClientIp())
+				.append(" - ")
+				.append(request.getMethod())
+				.append(" ")
+				.append(request.getUrl());
+
 		if (request.isBrowserProxyRequest()) {
 			sb.append(" (via browser proxy request)");
 		}
+
 		sb.append("\n\n");
 		sb.append(request.getHeaders());
 
@@ -87,5 +96,5 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 
 	protected boolean logRequests() { return false; }
 
-	protected abstract ResponseDefinition handleRequest(Request request);
+	protected abstract ServedStub handleRequest(Request request);
 }

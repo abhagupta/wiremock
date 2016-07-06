@@ -19,6 +19,8 @@ import java.util.List;
 
 /**
  * Created by agupt13 on 6/9/16.
+ *
+ * This class is customized because the Android JVM classes do not support the `setEndpointIdentificationAlgorithm` for https communication.
  */
 public class CustomizedSslContextFactory extends org.eclipse.jetty.util.ssl.SslContextFactory  {
 
