@@ -94,7 +94,7 @@ public class WireMockHandlerDispatchingServlet extends HttpServlet {
 	protected void service(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ServletException, IOException {
 		LocalNotifier.set(notifier);
 		
-		Request request = new JettyHttpServletRequestAdapter(httpServletRequest, mappedUnder);
+		Request request = new WireMockHttpServletRequestAdapter(httpServletRequest, mappedUnder);
 		requestHandler.notifyListeners(request);
 
 		Response response = requestHandler.handle(request);
