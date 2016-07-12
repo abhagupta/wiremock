@@ -169,7 +169,6 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
 
     public static void addMockServiceRequestListener(RequestListener listener) {
 		stubRequestHandler.addRequestListener(listener);
-        stubRequestHandler.useWithSetMockId();
 	}
 	
 	public void enableRecordMappings(FileSource mappingsFileSource, FileSource filesFileSource) {
