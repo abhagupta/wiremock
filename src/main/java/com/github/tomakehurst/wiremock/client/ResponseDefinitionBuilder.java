@@ -17,7 +17,13 @@ package com.github.tomakehurst.wiremock.client;
 
 import com.github.tomakehurst.wiremock.common.Json;
 import com.github.tomakehurst.wiremock.extension.Parameters;
-import com.github.tomakehurst.wiremock.http.*;
+import com.github.tomakehurst.wiremock.http.DelayDistribution;
+import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.http.HttpHeader;
+import com.github.tomakehurst.wiremock.http.HttpHeaders;
+import com.github.tomakehurst.wiremock.http.LogNormal;
+import com.github.tomakehurst.wiremock.http.ResponseDefinition;
+import com.github.tomakehurst.wiremock.http.UniformDistribution;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -141,6 +147,13 @@ public class ResponseDefinitionBuilder {
 	public static ResponseDefinitionBuilder responseDefinition() {
 		return new ResponseDefinitionBuilder();
 	}
+
+	public static <T> ResponseDefinitionBuilder okForJson(T body) {
+        return responseDefinition()
+            .withStatus(HTTP_OK)
+            .withBody(Json.write(body))
+            .withHeader("Content-Type", "application/json");
+    }
 
 	public ResponseDefinitionBuilder withHeaders(HttpHeaders headers) {
 		this.headers = ImmutableList.copyOf(headers.all());

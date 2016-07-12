@@ -1,396 +1,318 @@
-/*
- * Copyright (C) 2011 Thomas Akehurst
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.github.tomakehurst.wiremock.matching;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize.Inclusion;
+import com.github.tomakehurst.wiremock.client.BasicCredentials;
 import com.github.tomakehurst.wiremock.common.Json;
-import com.github.tomakehurst.wiremock.extension.Parameters;
-import com.github.tomakehurst.wiremock.http.HttpHeader;
-import com.github.tomakehurst.wiremock.http.QueryParameter;
+import com.github.tomakehurst.wiremock.http.Cookie;
 import com.github.tomakehurst.wiremock.http.Request;
 import com.github.tomakehurst.wiremock.http.RequestMethod;
 import com.google.common.base.Function;
-import com.google.common.base.Optional;
+import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 
-import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
-import static com.github.tomakehurst.wiremock.common.LocalNotifier.notifier;
-import static com.github.tomakehurst.wiremock.http.RequestMethod.ANY;
-import static com.github.tomakehurst.wiremock.matching.ValuePattern.matching;
-import static com.google.common.base.Predicates.notNull;
+import static com.fasterxml.jackson.databind.annotation.JsonSerialize.Inclusion.NON_NULL;
+import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
+import static com.github.tomakehurst.wiremock.matching.RequestMatcherExtension.NEVER;
+import static com.github.tomakehurst.wiremock.matching.RequestPatternBuilder.newRequestPattern;
+import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.collect.FluentIterable.from;
-import static com.google.common.collect.Iterables.*;
-import static com.google.common.collect.Maps.newLinkedHashMap;
-import static java.util.Arrays.asList;
+import static com.google.common.net.HttpHeaders.AUTHORIZATION;
 
-@JsonSerialize(include=Inclusion.NON_NULL)
-public class RequestPattern {
+public class RequestPattern implements ValueMatcher<Request> {
 
-    private String urlPattern;
-	private String url;
-    private String urlPath;
-	private String urlPathPattern;
-    private RequestMethod method;
-    private Map<String, ValuePattern> headerPatterns;
-    private Map<String, ValuePattern> queryParamPatterns;
-    private List<ValuePattern> bodyPatterns;
+    private final UrlPattern url;
+    private final RequestMethod method;
+    private final Map<String, MultiValuePattern> headers;
+    private final Map<String, MultiValuePattern> queryParams;
+    private final Map<String, StringValuePattern> cookies;
+    private final BasicCredentials basicAuthCredentials;
+    private final List<StringValuePattern> bodyPatterns;
 
-	private final RequestMatcher defaultMatcher = new RequestMatcher() {
-		@Override
-		public boolean isMatchedBy(Request request) {
-			return RequestPattern.this.allElementsMatch(request);
-		}
-	};
-	private RequestMatcher matcher = defaultMatcher;
+    private CustomMatcherDefinition customMatcherDefinition;
+    private RequestMatcher matcher;
 
-	private CustomMatcherDefinition customMatcherDefinition;
+    private final RequestMatcher defaultMatcher = new RequestMatcher() {
+        @Override
+        public MatchResult match(Request request) {
+            return MatchResult.aggregate(
+                url.match(request.getUrl()),
+                method.match(request.getMethod()),
+                allHeadersMatchResult(request),
+                allQueryParamsMatch(request),
+                allCookiesMatch(request),
+                allBodyPatternsMatch(request)
+            );
+        }
 
-	public RequestPattern(RequestMatcher customMatcher) {
-		this.matcher = customMatcher;
-	}
+        @Override
+        public String getName() {
+            return "default";
+        }
 
-	public RequestPattern(String customMatcherName, Parameters matcherParameters) {
-		customMatcherDefinition = new CustomMatcherDefinition(customMatcherName, matcherParameters);
-	}
+    };
 
-	public RequestPattern(RequestMethod method, String url, Map<String, ValuePattern> headerPatterns, Map<String, ValuePattern> queryParamPatterns) {
+    public RequestPattern(UrlPattern url,
+                          RequestMethod method,
+                          Map<String, MultiValuePattern> headers,
+                          Map<String, MultiValuePattern> queryParams,
+                          Map<String, StringValuePattern> cookies,
+                          BasicCredentials basicAuthCredentials,
+                          List<StringValuePattern> bodyPatterns,
+                          CustomMatcherDefinition customMatcherDefinition) {
         this.url = url;
         this.method = method;
-        this.headerPatterns = headerPatterns;
-        this.queryParamPatterns = queryParamPatterns;
+        this.headers = headers;
+        this.queryParams = queryParams;
+        this.cookies = cookies;
+        this.basicAuthCredentials = basicAuthCredentials;
+        this.bodyPatterns = bodyPatterns;
+        this.matcher = defaultMatcher;
+        this.customMatcherDefinition = customMatcherDefinition;
     }
 
-    public RequestPattern(RequestMethod method, String url, Map<String, ValuePattern> headerPatterns) {
-		this.url = url;
-		this.method = method;
-		this.headerPatterns = headerPatterns;
-	}
+    @JsonCreator
+    public RequestPattern(@JsonProperty("url") String url,
+                          @JsonProperty("urlPattern") String urlPattern,
+                          @JsonProperty("urlPath") String urlPath,
+                          @JsonProperty("urlPathPattern") String urlPathPattern,
+                          @JsonProperty("method") RequestMethod method,
+                          @JsonProperty("headers") Map<String, MultiValuePattern> headers,
+                          @JsonProperty("queryParameters") Map<String, MultiValuePattern> queryParams,
+                          @JsonProperty("cookies") Map<String, StringValuePattern> cookies,
+                          @JsonProperty("basicAuth") BasicCredentials basicAuthCredentials,
+                          @JsonProperty("bodyPatterns") List<StringValuePattern> bodyPatterns,
+                          @JsonProperty("customMatcher") CustomMatcherDefinition customMatcherDefinition) {
 
-	public RequestPattern(RequestMethod method) {
-		this.method = method;
-	}
+        this(
+            UrlPattern.fromOneOf(url, urlPattern, urlPath, urlPathPattern),
+            method,
+            headers,
+            queryParams,
+            cookies,
+            basicAuthCredentials,
+            bodyPatterns,
+            customMatcherDefinition
+        );
+    }
 
-	public RequestPattern(RequestMethod method, String url) {
-		this.url = url;
-		this.method = method;
-	}
+    public RequestPattern(RequestMatcher customMatcher) {
+        this(null, null, null, null, null, null, null, null);
+        this.matcher = customMatcher;
+    }
 
-	public RequestPattern() {
-	}
+    public RequestPattern(CustomMatcherDefinition customMatcherDefinition) {
+        this(null, null, null, null, null, null, null, customMatcherDefinition);
+    }
+
+    @Override
+    public MatchResult match(Request request) {
+        return match(request, Collections.<String, RequestMatcherExtension>emptyMap());
+    }
 
     public static RequestPattern everything() {
-        RequestPattern requestPattern = new RequestPattern(RequestMethod.ANY);
-        requestPattern.setUrlPattern(".*");
-        return requestPattern;
+        return newRequestPattern(RequestMethod.ANY, anyUrl()).build();
     }
 
-    public static RequestPattern buildRequestPatternFrom(String json) {
-        return Json.read(json, RequestPattern.class);
-    }
-
-    private void assertIsInValidState() {
-        if (from(asList(url, urlPath, urlPattern, urlPathPattern)).filter(notNull()).size() > 1) {
-			throw new IllegalStateException("Only one of url, urlPattern, urlPath or urlPathPattern may be set");
-		}
-	}
-
-	public boolean isMatchedBy(Request request, Map<String, RequestMatcherExtension> customMatchers) {
-		if (customMatcherDefinition != null) {
-			RequestMatcherExtension requestMatcher = customMatchers.get(customMatcherDefinition.getName());
-			return requestMatcher.isMatchedBy(request, customMatcherDefinition.getParameters());
-		}
-
-		return matcher.isMatchedBy(request);
-	}
-
-	public boolean isMatchedBy(Request request) {
-		return isMatchedBy(request, Collections.<String, RequestMatcherExtension>emptyMap());
-	}
-
-	private boolean allElementsMatch(Request request) {
-		return (urlIsMatch(request) &&
-				methodMatches(request) &&
-                requiredAbsentHeadersAreNotPresentIn(request) &&
-				headersMatch(request) &&
-                queryParametersMatch(request) &&
-				bodyMatches(request));
-	}
-
-	private boolean urlIsMatch(Request request) {
-		String candidateUrl = request.getUrl();
-		boolean matched;
-		if (url != null) {
-            matched = url.equals(candidateUrl);
-        } else if (urlPattern != null) {
-			matched = candidateUrl.matches(urlPattern);
-		} else if (urlPathPattern != null) {
-			matched = candidateUrl.matches(urlPathPattern.concat(".*"));
-		} else {
-            matched = URI.create(candidateUrl).getPath().equals(urlPath);
+    public MatchResult match(Request request,  Map<String, RequestMatcherExtension> customMatchers) {
+        if (customMatcherDefinition != null) {
+            RequestMatcherExtension requestMatcher =
+                firstNonNull(customMatchers.get(customMatcherDefinition.getName()), NEVER);
+            return requestMatcher.match(request, customMatcherDefinition.getParameters());
         }
 
-		return matched;
-	}
-
-	private boolean methodMatches(Request request) {
-		boolean matched = method.equals(ANY) || request.getMethod().equals(method);
-		if (!matched) {
-			notifier().info(String.format("URL %s is match, but method %s is not", request.getUrl(), request.getMethod()));
-		}
-
-		return matched;
-	}
-
-    private boolean requiredAbsentHeadersAreNotPresentIn(final Request request) {
-        return !any(requiredAbsentHeaderKeys(), new Predicate<String>() {
-            public boolean apply(String key) {
-                return request.getAllHeaderKeys().contains(key);
-            }
-        });
+        return matcher.match(request);
     }
 
-    private Set<String> requiredAbsentHeaderKeys() {
-        if (headerPatterns == null) {
-            return ImmutableSet.of();
+    private MatchResult allCookiesMatch(final Request request) {
+        if (cookies != null && !cookies.isEmpty()) {
+            return MatchResult.aggregate(
+                from(cookies.entrySet())
+                    .transform(new Function<Map.Entry<String, StringValuePattern>, MatchResult>() {
+                        public MatchResult apply(Map.Entry<String, StringValuePattern> cookiePattern) {
+                            Cookie cookie = request.getCookies().get(cookiePattern.getKey());
+                            return cookie != null ?
+                                cookiePattern.getValue().match(cookie.getValue()) :
+                                MatchResult.noMatch();
+
+                        }
+                    }).toList()
+            );
         }
 
-        return ImmutableSet.copyOf(filter(transform(headerPatterns.entrySet(), TO_KEYS_WHERE_VALUE_ABSENT), REMOVING_NULL));
+        return MatchResult.exactMatch();
     }
 
-	private boolean headersMatch(final Request request) {
-        return noHeadersAreRequiredToBePresent() ||
-                all(headerPatterns.entrySet(), matchHeadersIn(request));
-	}
+    private MatchResult allHeadersMatchResult(final Request request) {
+        Map<String, MultiValuePattern> combinedHeaders = combineBasicAuthAndOtherHeaders();
 
-    private boolean queryParametersMatch(Request request) {
-        return (queryParamPatterns == null ||
-                all(queryParamPatterns.entrySet(), matchQueryParametersIn(request)));
-    }
-
-    private boolean noHeadersAreRequiredToBePresent() {
-        return headerPatterns == null || allHeaderPatternsSpecifyAbsent();
-    }
-
-    private boolean allHeaderPatternsSpecifyAbsent() {
-        return size(filter(headerPatterns.values(), new Predicate<ValuePattern>() {
-            public boolean apply(ValuePattern headerPattern) {
-                return !headerPattern.nullSafeIsAbsent();
-            }
-        })) == 0;
-    }
-
-    private boolean bodyMatches(Request request) {
-		if (bodyPatterns == null) {
-			return true;
-		}
-
-		boolean matches = all(bodyPatterns, matching(request.getBodyAsString()));
-
-		if (!matches) {
-			notifier().info(String.format("URL %s is match, but body is not: %s", request.getUrl(), request.getBodyAsString()));
-		}
-
-		return matches;
-	}
-
-	public String getUrlPattern() {
-		return urlPattern;
-	}
-
-	public void setUrlPattern(String urlPattern) {
-		this.urlPattern = urlPattern;
-		assertIsInValidState();
-	}
-
-	public RequestMethod getMethod() {
-		return method;
-	}
-
-	public void setMethod(RequestMethod method) {
-		this.method = method;
-	}
-
-	public Map<String, ValuePattern> getHeaders() {
-		return headerPatterns;
-	}
-
-    public Map<String, ValuePattern> getQueryParameters() {
-        return queryParamPatterns;
-    }
-
-	public CustomMatcherDefinition getCustomMatcher() {
-		return customMatcherDefinition;
-	}
-
-	public void setCustomMatcher(CustomMatcherDefinition customMatcherDefinition) {
-		this.customMatcherDefinition = customMatcherDefinition;
-	}
-
-    public void setQueryParameters(Map<String, ValuePattern> queryParamPatterns) {
-        this.queryParamPatterns = queryParamPatterns;
-    }
-
-    public void addHeader(String key, ValuePattern pattern) {
-		if (headerPatterns == null) {
-			headerPatterns = newLinkedHashMap();
-		}
-
-		headerPatterns.put(key, pattern);
-	}
-
-    public void addQueryParam(String key, ValuePattern valuePattern) {
-        if (queryParamPatterns == null) {
-            queryParamPatterns = newLinkedHashMap();
+        if (combinedHeaders != null && !combinedHeaders.isEmpty()) {
+            return MatchResult.aggregate(
+                from(combinedHeaders.entrySet())
+                    .transform(new Function<Map.Entry<String, MultiValuePattern>, MatchResult>() {
+                        public MatchResult apply(Map.Entry<String, MultiValuePattern> headerPattern) {
+                            return headerPattern.getValue().match(request.header(headerPattern.getKey()));
+                        }
+                    }).toList()
+            );
         }
 
-        queryParamPatterns.put(key, valuePattern);
+        return MatchResult.exactMatch();
     }
 
-	public void setHeaders(Map<String, ValuePattern> headers) {
-		this.headerPatterns = headers;
-	}
+    public Map<String, MultiValuePattern> combineBasicAuthAndOtherHeaders() {
+        if (basicAuthCredentials == null) {
+            return headers;
+        }
 
-	public String getUrl() {
-		return url;
-	}
+        Map<String, MultiValuePattern> combinedHeaders = headers;
+        ImmutableMap.Builder<String, MultiValuePattern> allHeadersBuilder =
+            ImmutableMap.<String, MultiValuePattern>builder()
+                .putAll(firstNonNull(combinedHeaders, Collections.<String, MultiValuePattern>emptyMap()));
+        allHeadersBuilder.put(AUTHORIZATION, basicAuthCredentials.asAuthorizationMultiValuePattern());
+        combinedHeaders = allHeadersBuilder.build();
+        return combinedHeaders;
+    }
 
-	public void setUrl(String url) {
-		this.url = url;
-		assertIsInValidState();
-	}
+    private MatchResult allQueryParamsMatch(final Request request) {
+        if (queryParams != null && !queryParams.isEmpty()) {
+            return MatchResult.aggregate(
+                from(queryParams.entrySet())
+                    .transform(new Function<Map.Entry<String, MultiValuePattern>, MatchResult>() {
+                        public MatchResult apply(Map.Entry<String, MultiValuePattern> queryParamPattern) {
+                            return queryParamPattern.getValue().match(request.queryParameter(queryParamPattern.getKey()));
+                        }
+                    }).toList()
+            );
+        }
+
+        return MatchResult.exactMatch();
+    }
+
+    private MatchResult allBodyPatternsMatch(final Request request) {
+        if (bodyPatterns != null && !bodyPatterns.isEmpty() && request.getBody() != null) {
+            return MatchResult.aggregate(
+                from(bodyPatterns).transform(new Function<StringValuePattern, MatchResult>() {
+                    @Override
+                    public MatchResult apply(StringValuePattern pattern) {
+                        return pattern.match(request.getBodyAsString());
+                    }
+                }).toList()
+            );
+        }
+
+        return MatchResult.exactMatch();
+    }
+
+    public boolean isMatchedBy(Request request, Map<String, RequestMatcherExtension> customMatchers) {
+        return match(request, customMatchers).isExactMatch();
+    }
+
+    public String getUrl() {
+        return urlPatternOrNull(UrlPattern.class, false);
+    }
+
+    public String getUrlPattern() {
+        return urlPatternOrNull(UrlPattern.class, true);
+    }
 
     public String getUrlPath() {
-        return urlPath;
+        return urlPatternOrNull(UrlPathPattern.class, false);
     }
 
-    public void setUrlPath(String urlPath) {
-        this.urlPath = urlPath;
-        assertIsInValidState();
+    public String getUrlPathPattern() {
+        return urlPatternOrNull(UrlPathPattern.class, true);
     }
 
-	public String getUrlPathPattern() {
-		return urlPathPattern;
-	}
+    @JsonIgnore
+    public UrlPattern getUrlMatcher() {
+        return url;
+    }
 
-	public void setUrlPathPattern(String urlPathPattern) {
-		this.urlPathPattern = urlPathPattern;
-		assertIsInValidState();
-	}
+    private String urlPatternOrNull(Class<? extends UrlPattern> clazz, boolean regex) {
+        return (url != null && url.getClass().equals(clazz) && url.isRegex() == regex && url.isSpecified()) ? url.getPattern().getValue() : null;
+    }
 
-	public List<ValuePattern> getBodyPatterns() {
-		return bodyPatterns;
-	}
+    public RequestMethod getMethod() {
+        return method;
+    }
 
-	public void setBodyPatterns(List<ValuePattern> bodyPatterns) {
-		this.bodyPatterns = bodyPatterns;
-	}
+    public Map<String, MultiValuePattern> getHeaders() {
+        return headers;
+    }
 
-	@JsonIgnore
-	public boolean hasCustomMatcher() {
-		return matcher != defaultMatcher;
-	}
+    public BasicCredentials getBasicAuthCredentials() {
+        return basicAuthCredentials;
+    }
 
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		RequestPattern that = (RequestPattern) o;
-		return Objects.equals(urlPattern, that.urlPattern) &&
-				Objects.equals(url, that.url) &&
-				Objects.equals(urlPath, that.urlPath) &&
-				Objects.equals(urlPathPattern, that.urlPathPattern) &&
-				Objects.equals(method, that.method) &&
-				Objects.equals(headerPatterns, that.headerPatterns) &&
-				Objects.equals(queryParamPatterns, that.queryParamPatterns) &&
-				Objects.equals(bodyPatterns, that.bodyPatterns);
-	}
+    public Map<String, MultiValuePattern> getQueryParameters() {
+        return queryParams;
+    }
 
-	@Override
-	public int hashCode() {
-		return Objects.hash(urlPattern, url, urlPath, urlPathPattern, method, headerPatterns, queryParamPatterns, bodyPatterns);
-	}
+    public Map<String, StringValuePattern> getCookies() {
+        return cookies;
+    }
 
-	@Override
-	public String toString() {
-		return Json.write(this);
-	}
+    public List<StringValuePattern> getBodyPatterns() {
+        return bodyPatterns;
+    }
 
-    private static final Function<Map.Entry<String,ValuePattern>,String> TO_KEYS_WHERE_VALUE_ABSENT = new Function<Map.Entry<String, ValuePattern>, String>() {
-        public String apply(Map.Entry<String, ValuePattern> input) {
-            return input.getValue().nullSafeIsAbsent() ? input.getKey() : null;
-        }
-    };
+    public CustomMatcherDefinition getCustomMatcher() {
+        return customMatcherDefinition;
+    }
 
-    private static final Predicate<String> REMOVING_NULL = new Predicate<String>() {
-        public boolean apply(String input) {
-            return input != null;
-        }
-    };
+    @Override
+    public String getName() {
+        return "requestMatching";
+    }
 
+    @Override
+    public String getExpected() {
+        return toString();
+    }
 
-    private static Predicate<Map.Entry<String, ValuePattern>> matchHeadersIn(final Request request) {
-        return new Predicate<Map.Entry<String, ValuePattern>>() {
-            public boolean apply(Map.Entry<String, ValuePattern> headerPattern) {
-                ValuePattern headerValuePattern = headerPattern.getValue();
-                String key = headerPattern.getKey();
-                HttpHeader header = request.header(key);
+    public boolean hasCustomMatcher() {
+        return matcher != defaultMatcher;
+    }
 
-                boolean match = header.hasValueMatching(headerValuePattern);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RequestPattern that = (RequestPattern) o;
+        return Objects.equal(url, that.url) &&
+            Objects.equal(method, that.method) &&
+            Objects.equal(headers, that.headers) &&
+            Objects.equal(queryParams, that.queryParams) &&
+            Objects.equal(cookies, that.cookies) &&
+            Objects.equal(basicAuthCredentials, that.basicAuthCredentials) &&
+            Objects.equal(bodyPatterns, that.bodyPatterns) &&
+            Objects.equal(customMatcherDefinition, that.customMatcherDefinition);
+    }
 
-                if (!match) {
-                    notifier().info(String.format(
-                            "URL %s is match, but header %s is not. For a match, value should %s",
-                            request.getUrl(),
-                            key,
-                            headerValuePattern.toString()));
-                }
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(url, method, headers, queryParams, cookies, basicAuthCredentials, bodyPatterns, customMatcherDefinition, matcher, defaultMatcher);
+    }
 
-                return match;
+    @Override
+    public String toString() {
+        return Json.write(this);
+    }
+
+    public static Predicate<Request> thatMatch(final RequestPattern pattern) {
+        return new Predicate<Request>() {
+            @Override
+            public boolean apply(Request request) {
+                return pattern.match(request).isExactMatch();
             }
         };
     }
-
-    private Predicate<? super Map.Entry<String, ValuePattern>> matchQueryParametersIn(final Request request) {
-        return new Predicate<Map.Entry<String, ValuePattern>>() {
-            public boolean apply(Map.Entry<String, ValuePattern> entry) {
-                ValuePattern valuePattern = entry.getValue();
-                String key = entry.getKey();
-                Optional<QueryParameter> queryParam = Optional.fromNullable(request.queryParameter(key));
-                boolean match = queryParam.isPresent() && queryParam.get().hasValueMatching(valuePattern);
-
-                if (!match) {
-                    notifier().info(String.format(
-                            "URL %s is match, but query parameter %s is not. For a match, value should %s",
-                            request.getUrl(),
-                            key,
-                            valuePattern.toString()));
-                }
-
-                return match;
-            }
-        };
-    }
-
 }

@@ -15,6 +15,30 @@
  */
 package com.github.tomakehurst.wiremock.jetty9;
 
+import static com.github.tomakehurst.wiremock.common.Exceptions.throwUnchecked;
+import static com.github.tomakehurst.wiremock.core.WireMockApp.ADMIN_CONTEXT_ROOT;
+
+import java.util.EnumSet;
+
+import javax.servlet.DispatcherType;
+
+import org.eclipse.jetty.http.MimeTypes;
+import org.eclipse.jetty.server.ConnectionFactory;
+import org.eclipse.jetty.server.Handler;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.SecureRequestCustomizer;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.handler.HandlerCollection;
+import org.eclipse.jetty.servlet.DefaultServlet;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.servlets.GzipFilter;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.common.FileSource;
 import com.github.tomakehurst.wiremock.common.HttpsSettings;
@@ -26,24 +50,9 @@ import com.github.tomakehurst.wiremock.http.HttpServer;
 import com.github.tomakehurst.wiremock.http.RequestHandler;
 import com.github.tomakehurst.wiremock.http.StubRequestHandler;
 import com.github.tomakehurst.wiremock.servlet.ContentTypeSettingFilter;
+import com.github.tomakehurst.wiremock.servlet.FaultInjectorFactory;
 import com.github.tomakehurst.wiremock.servlet.TrailingSlashFilter;
-import org.eclipse.jetty.http.MimeTypes;
-import org.eclipse.jetty.server.*;
-import org.eclipse.jetty.server.handler.HandlerCollection;
-import org.eclipse.jetty.servlet.DefaultServlet;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.servlets.GzipFilter;
-import org.eclipse.jetty.util.thread.QueuedThreadPool;
-
-import javax.servlet.DispatcherType;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.util.EnumSet;
-
-import static com.github.tomakehurst.wiremock.common.Exceptions.throwUnchecked;
-import static com.github.tomakehurst.wiremock.core.WireMockApp.ADMIN_CONTEXT_ROOT;
-import static com.github.tomakehurst.wiremock.jetty9.JettyHandlerDispatchingServlet.SHOULD_FORWARD_TO_FILES_CONTEXT;
+import com.github.tomakehurst.wiremock.servlet.WireMockHandlerDispatchingServlet;
 
 class JettyHttpServer implements HttpServer {
 
@@ -99,7 +108,6 @@ class JettyHttpServer implements HttpServer {
     @Override
     public void start() {
         try {
-            System.out.println("JETTY SERVER STARTING");
             jettyServer.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -147,8 +155,7 @@ class JettyHttpServer implements HttpServer {
             int port,
             JettySettings jettySettings) {
 
-        HttpConfiguration httpConfig = new HttpConfiguration();
-        setHeaderBufferSize(jettySettings, httpConfig);
+        HttpConfiguration httpConfig = createHttpConfig(jettySettings);
 
         ServerConnector connector = createServerConnector(
                 jettySettings,
@@ -161,31 +168,25 @@ class JettyHttpServer implements HttpServer {
 
     private ServerConnector createHttpsConnector(
             HttpsSettings httpsSettings,
-            JettySettings jettySettings)  {
+            JettySettings jettySettings) {
 
-
+        //Added to support Android https communication.
         CustomizedSslContextFactory sslContextFactory = new CustomizedSslContextFactory();
 
         sslContextFactory.setKeyStorePath(httpsSettings.keyStorePath());
-        sslContextFactory.setKeyStoreType("BKS");
         sslContextFactory.setKeyManagerPassword(httpsSettings.keyStorePassword());
+        sslContextFactory.setKeyStoreType(httpsSettings.keyStoreType());
         if (httpsSettings.hasTrustStore()) {
             sslContextFactory.setTrustStorePath(httpsSettings.trustStorePath());
-            sslContextFactory.setTrustStoreType("BKS");
             sslContextFactory.setTrustStorePassword(httpsSettings.trustStorePassword());
+            sslContextFactory.setTrustStoreType(httpsSettings.trustStoreType());
         }
-
-        System.out.println("outside " + httpsSettings.needClientAuth());
         sslContextFactory.setNeedClientAuth(httpsSettings.needClientAuth());
 
-        HttpConfiguration httpConfig = new HttpConfiguration();
-        System.out.println("httpConfig " + httpConfig);
-        setHeaderBufferSize(jettySettings, httpConfig);
+        HttpConfiguration httpConfig = createHttpConfig(jettySettings);
         httpConfig.addCustomizer(new SecureRequestCustomizer());
 
         final int port = httpsSettings.port();
-
-        System.out.println("httpsSettings.port " + port);
 
 
         return createServerConnector(
@@ -197,6 +198,15 @@ class JettyHttpServer implements HttpServer {
                 ),
                 new HttpConnectionFactory(httpConfig)
         );
+    }
+
+    private HttpConfiguration createHttpConfig(JettySettings jettySettings) {
+        HttpConfiguration httpConfig = new HttpConfiguration();
+        httpConfig.setRequestHeaderSize(
+                jettySettings.getRequestHeaderSize().or(8192)
+        );
+        httpConfig.setSendDateHeader(false);
+        return httpConfig;
     }
 
     private ServerConnector createServerConnector(JettySettings jettySettings, int port, ConnectionFactory... connectionFactories) {
@@ -226,14 +236,6 @@ class JettyHttpServer implements HttpServer {
         }
     }
 
-    private void setHeaderBufferSize(JettySettings jettySettings, HttpConfiguration configuration) {
-        int headerBufferSize = 8192;
-        if (jettySettings.getRequestHeaderSize().isPresent()) {
-            headerBufferSize = jettySettings.getRequestHeaderSize().get();
-        }
-        configuration.setRequestHeaderSize(headerBufferSize);
-    }
-
     @SuppressWarnings({"rawtypes", "unchecked" })
     private ServletContextHandler addMockServiceContext(
             StubRequestHandler stubRequestHandler,
@@ -248,11 +250,13 @@ class JettyHttpServer implements HttpServer {
 
         mockServiceContext.addServlet(DefaultServlet.class, FILES_URL_MATCH);
 
+        mockServiceContext.setAttribute(JettyFaultInjectorFactory.class.getName(), new JettyFaultInjectorFactory());
         mockServiceContext.setAttribute(StubRequestHandler.class.getName(), stubRequestHandler);
         mockServiceContext.setAttribute(Notifier.KEY, notifier);
-        ServletHolder servletHolder = mockServiceContext.addServlet(JettyHandlerDispatchingServlet.class, "/");
+        ServletHolder servletHolder = mockServiceContext.addServlet(WireMockHandlerDispatchingServlet.class, "/");
         servletHolder.setInitParameter(RequestHandler.HANDLER_CLASS_KEY, StubRequestHandler.class.getName());
-        servletHolder.setInitParameter(SHOULD_FORWARD_TO_FILES_CONTEXT, "true");
+        servletHolder.setInitParameter(FaultInjectorFactory.INJECTOR_CLASS_KEY, JettyFaultInjectorFactory.class.getName());
+        servletHolder.setInitParameter(WireMockHandlerDispatchingServlet.SHOULD_FORWARD_TO_FILES_CONTEXT, "true");
 
         MimeTypes mimeTypes = new MimeTypes();
         mimeTypes.addMimeMapping("json", "application/json");
@@ -275,7 +279,7 @@ class JettyHttpServer implements HttpServer {
             Notifier notifier
     ) {
         ServletContextHandler adminContext = new ServletContextHandler(jettyServer, ADMIN_CONTEXT_ROOT);
-        ServletHolder servletHolder = adminContext.addServlet(JettyHandlerDispatchingServlet.class, "/");
+        ServletHolder servletHolder = adminContext.addServlet(WireMockHandlerDispatchingServlet.class, "/");
         servletHolder.setInitParameter(RequestHandler.HANDLER_CLASS_KEY, AdminRequestHandler.class.getName());
         adminContext.setAttribute(AdminRequestHandler.class.getName(), adminRequestHandler);
         adminContext.setAttribute(Notifier.KEY, notifier);

@@ -30,9 +30,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static java.net.HttpURLConnection.*;
+import static java.net.HttpURLConnection.HTTP_CREATED;
+import static java.net.HttpURLConnection.HTTP_MOVED_TEMP;
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
+import static java.net.HttpURLConnection.HTTP_NO_CONTENT;
+import static java.net.HttpURLConnection.HTTP_OK;
 
-@JsonSerialize(include=Inclusion.NON_NULL)
 public class ResponseDefinition {
 
 	private final int status;
@@ -137,6 +140,14 @@ public class ResponseDefinition {
 
 	public static ResponseDefinition created() {
 		return new ResponseDefinition(HTTP_CREATED, (byte[])null);
+	}
+
+	public static ResponseDefinition noContent() {
+		return new ResponseDefinition(HTTP_NO_CONTENT, (byte[])null);
+	}
+
+	public static <T> ResponseDefinition okForJson(T body) {
+		return ResponseDefinitionBuilder.okForJson(body).build();
 	}
 
 	public static ResponseDefinition redirectTo(String path) {
@@ -260,6 +271,7 @@ public class ResponseDefinition {
 		return browserProxyUrl != null || proxyBaseUrl != null;
 	}
 
+	@JsonIgnore
 	public Request getOriginalRequest() {
 		return originalRequest;
 	}
@@ -281,7 +293,7 @@ public class ResponseDefinition {
 	}
 
 	public boolean hasTransformer(AbstractTransformer transformer) {
-		return transformers != null && transformers.contains(transformer.name());
+		return transformers != null && transformers.contains(transformer.getName());
 	}
 
 	@Override
