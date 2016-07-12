@@ -1,4 +1,4 @@
-WireMock - a web service test double for all occasions
+WireMock - a web service test double for all occasions - Test
 ======================================================
 
 [![Build Status](https://travis-ci.org/tomakehurst/wiremock.svg?branch=master)](https://travis-ci.org/tomakehurst/wiremock)
