@@ -25,7 +25,8 @@ public class Slf4jNotifier implements Notifier {
     private final boolean verbose;
 
     public Slf4jNotifier(boolean verbose) {
-        this.verbose = verbose;
+
+        this.verbose = true;
     }
 
     @Override
