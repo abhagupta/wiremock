@@ -1,7 +1,7 @@
 WireMock - a web service test double for all occasions - Test
 ======================================================
 
-[![Build Status](https://travis-ci.org/tomakehurst/wiremock.svg?branch=master)](https://travis-ci.org/tomakehurst/wiremock)
+[![Build Status](https://travis-ci.org/abhagupta/wiremock.svg?branch=master)](https://travis-ci.org/abhagupta/wiremock)
 
 Key Features
 ------------
