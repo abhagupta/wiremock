@@ -93,7 +93,9 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 		LocalNotifier.set(notifier);
 		
 		Request request = new JettyHttpServletRequestAdapter(httpServletRequest, mappedUnder);
-		requestHandler.notifyListeners(request);
+			try {
+				requestHandler.notifyListeners(request);
+			}catch (Exception ignored){}
 
 		Response response = requestHandler.handle(request);
         if (Thread.currentThread().isInterrupted()) {

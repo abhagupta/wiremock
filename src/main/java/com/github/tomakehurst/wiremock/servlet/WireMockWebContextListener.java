@@ -44,7 +44,9 @@ public class WireMockWebContextListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        context = sce.getServletContext();
+        if(sce != null) {
+            context = sce.getServletContext();
+        }
         String fileSourceRoot = context.getInitParameter(FILE_SOURCE_ROOT_KEY);
 
         ServletContextFileSource fileSource = new ServletContextFileSource(context, fileSourceRoot);
@@ -81,7 +83,9 @@ public class WireMockWebContextListener implements ServletContextListener {
 
     public static void addListener(Slf4jNotifier slf4jNotifier){
         //slf4jNotifier = new Slf4jNotifier(true);
-        context.setAttribute(Notifier.KEY, slf4jNotifier);
+        if(context != null) {
+            context.setAttribute(Notifier.KEY, slf4jNotifier);
+        }
     }
 
     /**

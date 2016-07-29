@@ -28,7 +28,6 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 
 	protected List<RequestListener> listeners = newArrayList();
 	protected final ResponseRenderer responseRenderer;
-	private boolean useWithSetMockId = false;
 	
 	public AbstractRequestHandler(ResponseRenderer responseRenderer) {
 		this.responseRenderer = responseRenderer;
@@ -39,9 +38,6 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 		listeners.add(requestListener);
 	}
 
-	public void useWithSetMockId(){
-		useWithSetMockId = true;
-	}
 
 	@Override
 	public void notifyListeners(Request request){

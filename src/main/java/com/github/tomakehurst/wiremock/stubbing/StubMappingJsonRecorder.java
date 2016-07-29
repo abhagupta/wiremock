@@ -52,7 +52,6 @@ public class StubMappingJsonRecorder implements RequestListener {
     @Override
     public void requestReceived(Request request, Response response) {
         RequestPattern requestPattern = buildRequestPatternFrom(request);
-
         if (requestNotAlreadyReceived(requestPattern) && response.isFromProxy()) {
             notifier().info(String.format("Recording mappings for %s", request.getUrl()));
             writeToMappingAndBodyFile(request, response, requestPattern);
@@ -108,7 +107,6 @@ public class StubMappingJsonRecorder implements RequestListener {
         ResponseDefinition responseToWrite = responseDefinitionBuilder.build();
 
         StubMapping mapping = new StubMapping(requestPattern, responseToWrite);
-
         filesFileSource.writeBinaryFile(bodyFileName, bodyDecompressedIfRequired(response));
         mappingsFileSource.writeTextFile(mappingFileName, write(mapping));
     }
@@ -125,7 +123,6 @@ public class StubMappingJsonRecorder implements RequestListener {
         if (response.getHeaders().getHeader("Content-Encoding").containsValue("gzip")) {
             return Gzip.unGzip(response.getBody());
         }
-
         return response.getBody();
     }
 
