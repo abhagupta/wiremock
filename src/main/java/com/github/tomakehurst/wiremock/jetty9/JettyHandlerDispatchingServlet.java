@@ -15,6 +15,7 @@
  */
 package com.github.tomakehurst.wiremock.jetty9;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.common.Exceptions;
 import com.github.tomakehurst.wiremock.common.LocalNotifier;
 import com.github.tomakehurst.wiremock.common.Notifier;
@@ -44,12 +45,15 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 	public static final String MAPPED_UNDER_KEY = "mappedUnder";
 
 	private static final long serialVersionUID = -6602042274260495538L;
-	
+
 	private RequestHandler requestHandler;
+	private IdleStatusHandler idleStatusHandler;
+	private static RequestListener requestListener;
 	private String mappedUnder;
 	private Notifier notifier;
 	private String wiremockFileSourceRoot = "/";
 	private boolean shouldForwardToFilesContext;
+
 	
 	@Override
 	public void init(ServletConfig config) {
@@ -64,7 +68,11 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 		mappedUnder = getNormalizedMappedUnder(config);
 		context.log(RequestHandler.HANDLER_CLASS_KEY + " from context returned " + handlerClassName +
 			". Normlized mapped under returned '" + mappedUnder + "'");
+
 		requestHandler = (RequestHandler) context.getAttribute(handlerClassName);
+		idleStatusHandler = WireMockServer.getIdleStatusHandler();
+		requestListener = WireMockServer.getRequestListener();
+
 		notifier = (Notifier) context.getAttribute(Notifier.KEY);
 	}
 	
@@ -90,14 +98,17 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 
 	@Override
 	protected void service(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ServletException, IOException {
+		requestListener = WireMockServer.getRequestListener();
+
 		LocalNotifier.set(notifier);
-		
-		Request request = new JettyHttpServletRequestAdapter(httpServletRequest, mappedUnder);
+		final Request request = new JettyHttpServletRequestAdapter(httpServletRequest, mappedUnder);
 			try {
-				requestHandler.notifyListeners(request);
+				requestListener.requestReceived(request, null);
+				idleStatusHandler.notifyListeners(false);
 			}catch (Exception ignored){}
 
-		Response response = requestHandler.handle(request);
+		final Response response = requestHandler.handle(request);
+
         if (Thread.currentThread().isInterrupted()) {
             return;
         }
@@ -108,10 +119,18 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 		} else {
 			httpServletResponse.sendError(HTTP_NOT_FOUND);
 		}
+
+		if(requestListener != null) {
+			requestListener.requestReceived(request, response);
+		}
+		
+		try {
+			idleStatusHandler.notifyListeners(true);
+		}catch (Exception ignored){}
 	}
 
     public static void applyResponse(Response response, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
-        Fault fault = response.getFault();
+		Fault fault = response.getFault();
         if (fault != null) {
 			FaultInjector faultInjector = buildFaultInjector(httpServletRequest, httpServletResponse);
 			fault.apply(faultInjector);
@@ -125,11 +144,13 @@ public class JettyHandlerDispatchingServlet extends HttpServlet {
 			httpServletResponse.setStatus(response.getStatus(), response.getStatusMessage());
 		}
 
-        for (HttpHeader header: response.getHeaders().all()) {
-            for (String value: header.values()) {
-                httpServletResponse.addHeader(header.key(), value);
-            }
-        }
+		if(response.getHeaders() != null) {
+			for (HttpHeader header : response.getHeaders().all()) {
+				for (String value : header.values()) {
+					httpServletResponse.addHeader(header.key(), value);
+				}
+			}
+		}
 
         writeAndTranslateExceptions(httpServletResponse, response.getBody());
     }

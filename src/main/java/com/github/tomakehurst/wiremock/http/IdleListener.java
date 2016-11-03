@@ -15,7 +15,7 @@
  */
 package com.github.tomakehurst.wiremock.http;
 
-public interface RequestEventSource {
+public interface IdleListener {
 
-    void addRequestListener(RequestListener requestListener);
+	void idleStatusReceived(Boolean isIdle);
 }

@@ -49,7 +49,7 @@ class JettyHttpServer implements HttpServer {
 
     private static final String FILES_URL_MATCH = String.format("/%s/*", WireMockServer.FILES_ROOT);
 
-    private final Server jettyServer;
+    private Server jettyServer;
     private final ServerConnector httpConnector;
     private final ServerConnector httpsConnector;
 
@@ -122,7 +122,7 @@ class JettyHttpServer implements HttpServer {
         try {
             jettyServer.stop();
             jettyServer.join();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throwUnchecked(e);
         }
     }

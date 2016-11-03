@@ -15,18 +15,12 @@
  */
 package com.github.tomakehurst.wiremock.http;
 
-import com.google.common.base.Function;
 
-import java.util.List;
 
 import static com.github.tomakehurst.wiremock.common.LocalNotifier.notifier;
-import static com.google.common.base.Joiner.on;
-import static com.google.common.collect.Iterables.transform;
-import static com.google.common.collect.Lists.newArrayList;
 
-public abstract class AbstractRequestHandler implements RequestHandler, RequestEventSource {
+public abstract class AbstractRequestHandler implements RequestHandler {
 
-	protected List<RequestListener> listeners = newArrayList();
 	protected final ResponseRenderer responseRenderer;
 	
 	public AbstractRequestHandler(ResponseRenderer responseRenderer) {
@@ -34,23 +28,11 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 	}
 
 	@Override
-	public void addRequestListener(RequestListener requestListener) {
-		listeners.add(requestListener);
-	}
-
-
-	@Override
-	public void notifyListeners(Request request){
-		for (RequestListener listener: listeners) {
-			listener.requestReceived(request, null);
-		}
-	}
-
-	@Override
-	public Response handle(Request request) {
+	public Response handle(final Request request) {
 		ResponseDefinition responseDefinition = handleRequest(request);
 		responseDefinition.setOriginalRequest(request);
-		Response response = responseRenderer.render(responseDefinition);
+
+		final Response response = responseRenderer.render(responseDefinition);
 
 		if (logRequests()) {
 			notifier().info("Request received:\n" +
@@ -59,9 +41,6 @@ public abstract class AbstractRequestHandler implements RequestHandler, RequestE
 					"\n\nResponse:\n" + response);
 		}
 
-		for (RequestListener listener: listeners) {
-			listener.requestReceived(request, response);
-		}
 		return response;
 	}
 

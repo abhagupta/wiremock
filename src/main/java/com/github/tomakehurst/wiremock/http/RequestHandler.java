@@ -21,5 +21,4 @@ public interface RequestHandler {
 
 	Response handle(Request request);
 
-	void notifyListeners(Request request);
 }

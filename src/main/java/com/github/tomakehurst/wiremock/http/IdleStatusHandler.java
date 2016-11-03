@@ -13,25 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.tomakehurst.wiremock.jetty9;
+package com.github.tomakehurst.wiremock.http;
 
-import org.eclipse.jetty.io.EndPoint;
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnection;
 
-public class FaultInjectingHttpConnection extends HttpConnection {
+public class IdleStatusHandler extends AbstractIdleHandler {
 
-    public FaultInjectingHttpConnection(
-            HttpConfiguration config,
-            Connector connector,
-            EndPoint endPoint) {
-        super(
-                config,
-                connector,
-                endPoint,
-                null,
-                true
-        );
+    public IdleStatusHandler() {
+        super();
     }
+
 }

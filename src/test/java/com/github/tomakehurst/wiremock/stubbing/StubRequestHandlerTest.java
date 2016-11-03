@@ -73,7 +73,6 @@ public class StubRequestHandlerTest {
 	public void shouldNotifyListenersOnRequest() {
 		final Request request = aRequest(context).build();
 		final RequestListener listener = context.mock(RequestListener.class);
-		requestHandler.addRequestListener(listener);
 		
 		context.checking(new Expectations() {{
 			allowing(stubServer).serveStubFor(request); will(returnValue(ResponseDefinition.notConfigured()));

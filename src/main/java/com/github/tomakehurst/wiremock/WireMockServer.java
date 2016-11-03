@@ -29,6 +29,7 @@ import com.github.tomakehurst.wiremock.extension.ResponseTransformer;
 import com.github.tomakehurst.wiremock.global.GlobalSettings;
 import com.github.tomakehurst.wiremock.global.GlobalSettingsHolder;
 import com.github.tomakehurst.wiremock.http.*;
+import com.github.tomakehurst.wiremock.jetty9.JettyHandlerDispatchingServlet;
 import com.github.tomakehurst.wiremock.junit.LocalStubbing;
 import com.github.tomakehurst.wiremock.matching.RequestMatcherExtension;
 import com.github.tomakehurst.wiremock.matching.RequestPattern;
@@ -56,6 +57,8 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
 
 	private final WireMockApp wireMockApp;
     private static StubRequestHandler stubRequestHandler;
+    private static IdleStatusHandler idleStatusHandler;
+    private static RequestListener requestListener;
 
 	private final HttpServer httpServer;
     private final FileSource fileSource;
@@ -89,6 +92,7 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
                 wireMockApp,
                 new BasicResponseRenderer()
         );
+        idleStatusHandler = new IdleStatusHandler();
         stubRequestHandler = new StubRequestHandler(
                 wireMockApp,
                 new StubResponseRenderer(
@@ -167,8 +171,24 @@ public class WireMockServer implements Container, LocalStubbing, Admin {
     }
 
     public static void addMockServiceRequestListener(RequestListener listener) {
-        stubRequestHandler.addRequestListener(listener);
+        requestListener = listener;
 	}
+
+    public static RequestListener getRequestListener(){
+        return requestListener;
+    }
+
+    public static void setRequestListener(RequestListener listener){
+        requestListener = listener;
+    }
+
+    public static void addIdleStatusListener(IdleListener listener){
+        idleStatusHandler.addIdleListener(listener);
+    }
+
+    public static IdleStatusHandler getIdleStatusHandler(){
+        return idleStatusHandler;
+    }
 	
 	public void enableRecordMappings(FileSource mappingsFileSource, FileSource filesFileSource) {
 	    addMockServiceRequestListener(

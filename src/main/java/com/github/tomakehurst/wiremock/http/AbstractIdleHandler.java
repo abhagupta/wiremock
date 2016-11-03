@@ -13,25 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.tomakehurst.wiremock.jetty9;
+package com.github.tomakehurst.wiremock.http;
 
-import org.eclipse.jetty.io.EndPoint;
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnection;
+import java.util.List;
 
-public class FaultInjectingHttpConnection extends HttpConnection {
+import static com.google.common.collect.Lists.newArrayList;
 
-    public FaultInjectingHttpConnection(
-            HttpConfiguration config,
-            Connector connector,
-            EndPoint endPoint) {
-        super(
-                config,
-                connector,
-                endPoint,
-                null,
-                true
-        );
-    }
+public abstract class AbstractIdleHandler implements IdleHandler, IdleEventSource {
+
+	public AbstractIdleHandler(){}
+
+	protected List<IdleListener> listeners = newArrayList();
+
+	@Override
+	public void addIdleListener(IdleListener idleListener) {
+		listeners.add(idleListener);
+	}
+
+
+	@Override
+	public void notifyListeners(Boolean isIdle){
+		for (IdleListener listener: listeners) {
+			if(listener != null) {
+				listener.idleStatusReceived(isIdle);
+			}
+		}
+	}
 }
